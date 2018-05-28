@@ -5,5 +5,8 @@ import           Test.Hspec
 import           GCoin
 
 spec :: Spec
-spec =
-  testIsValidCoin isValidCoinTest addToChainTest emptyChainTest
+spec = do
+  testCreateCoin
+  testVerifyCreatedCoin
+  testTransferVerifyCoin
+  testIsValidCoin isValidCoinForTest addToChainForTest emptyChainForTest

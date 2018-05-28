@@ -1,2 +1,2 @@
 clean:
-	rm 0-diagrams.html *.png
+	rm z-diagrams.html *.png
