@@ -18,6 +18,7 @@ import qualified Data.Hex                             as Hex
 import qualified Data.IORef                           as IOR
 import qualified Data.Map                             as M
 import           Data.Monoid                          ((<>))
+import qualified Data.Set                             as S
 import qualified Data.Text                            as T
 import qualified Network.HTTP.Types                   as H
 import qualified Network.HTTP.Client                  as H
@@ -524,58 +525,9 @@ atomicModifyIORef_ :: IOR.IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ i f =
   IOR.atomicModifyIORef' i (\a -> (f a, ()))
 
+-- ===========================================================================
 ------------------------------------------------------------------------------
-
-isValidTX :: BCState -> SignedTX -> Either Text ()
-isValidTX s tx = case tx of
-  (SignedTX (CreateCoin l u) _) -> do
-    CM.when (ccInPool  u       (bcTXPool s)) $ Left ("CC already in pool: " <> l)
-    CM.when (ccInChain u       (bcChain  s)) $ Left ("CC already in chain: "<> l)
-    return ()
-  (SignedTX (TransferCoin l stxHash _) _) -> do
-    CM.when (tcInPool  stxHash (bcTXPool s)) $ Left ("TC already spent in pool: " <> l)
-    CM.when (tcInChain stxHash (bcChain  s)) $ Left ("TC already spent in chain: "<> l)
-    return ()
- where
-  ccInPool  u = fst . searchPool  (ccTest u) "JUNK"
-  ccInChain u = fst . searchChain (ccTest u) "JUNK"
-  ccTest u x  = case decodeSTX x of
-    (SignedTX (CreateCoin _ u') _) -> u == u' -- SAME UUID
-    _                              -> False
-  -- does pool have TransferCoin containing same STXHash as given stx?
-  tcInPool stxHash  = fst . searchPool  (tcTest stxHash) "JUNK"
-  -- does chain have STX whose STXHash field matches given STXHash?
-  tcInChain stxHash = fst . searchChain (tcTest stxHash) "JUNK"
-  tcTest stxHash x = case decodeSTX x of
-    (SignedTX (TransferCoin _ stxHash' _) _) -> stxHash == stxHash' -- already spent
-    _                                        -> False
-
-testIsValidTX = do
-  u                      <- runIO createUUID
-  (_creatorPK, creatorSK)<- runIO generatePKSKIO
-  (alicePK  , _aliceSK)  <- runIO generatePKSKIO
-  (bobPK    , _bobSK)    <- runIO generatePKSKIO
-  let Right cc        = createCoin   "cc"   u creatorSK
-  let Right cToA      = transferCoin "cToA" cc  creatorSK alicePK
-  let Right cToB      = transferCoin "cToB" cc  creatorSK bobPK
-  let sCCInPool       = addTxToPool initialBCState (encodeSTX cc)
-  let (sCCInChain, _) = mine sCCInPool
-  let sTCInPool       = addTxToPool sCCInChain (encodeSTX cToA)
-  let (sTCInChain, _) = mine sTCInPool
-  describe "isValidTX" $do
-    it "  valid : CC not in pool nor chain" $
-      isValidTX initialBCState cc `shouldBe` Right ()
-    it "invalid : CC already pool" $
-      isValidTX sCCInPool      cc `shouldBe` Left "CC already in pool: cc"
-    it "invalid : CC already chain" $
-      isValidTX sCCInChain     cc `shouldBe` Left "CC already in chain: cc"
-    --------------------------------------------------
-    it "  valid : TC not in pool nor chain" $
-      isValidTX initialBCState cToA `shouldBe` Right ()
-    it "invalid : TC already pool" $
-      isValidTX sTCInPool      cToA `shouldBe` Left "TC already spent in pool: cToA"
-    it "invalid : TC already chain" $
-      isValidTX sTCInChain     cToB `shouldBe` Left "TC already spent in chain: cToB"
+-- This only validates coin.  Does not prevent double spending.
 
 isValidCoin
   :: BCState   -- TODO: this is BCState (instead of Chain) because of addToChain in tests
@@ -602,6 +554,66 @@ addToChainBCSpec s = addToChain s . map encodeSTX
 -- for test
 emptyChainBCSpec = initialBCState
 
+------------------------------------------------------------------------------
+
+-- This prevents double spending because it uses the blockchain.
+
+isValidTX :: BCState -> SignedTX -> Either Text ()
+isValidTX s tx = case tx of
+  (SignedTX (CreateCoin l u) _) -> do
+    CM.when (ccInPool  u       (bcTXPool s)) $ Left ("CC already in pool: " <> l)
+    CM.when (ccInChain u       (bcChain  s)) $ Left ("CC already in chain: "<> l)
+    return ()
+  (SignedTX (TransferCoin l stxHash _) _) -> do
+    CM.when (tcInPool  stxHash (bcTXPool s)) $ Left ("TC already spent in pool: " <> l)
+    CM.when (tcInChain stxHash (bcChain  s)) $ Left ("TC already spent in chain: "<> l)
+    return ()
+ where
+  ccInPool  u         = fst . searchPool  (ccTest u) "JUNK"
+  ccInChain u         = fst . searchChain (ccTest u) "JUNK"
+  ccTest    u       x = case decodeSTX x of
+    (SignedTX (CreateCoin _ u') _) -> u == u' -- SAME UUID
+    _                              -> False
+  -- does pool have TransferCoin containing same STXHash as given stx?
+  tcInPool  stxHash   = fst . searchPool  (tcTest stxHash) "JUNK"
+  -- does chain have STX whose STXHash field matches given STXHash?
+  tcInChain stxHash   = fst . searchChain (tcTest stxHash) "JUNK"
+  tcTest    stxHash x = case decodeSTX x of
+    (SignedTX (TransferCoin _ stxHash' _) _) -> stxHash == stxHash' -- already spent
+    _                                        -> False
+
+-- TODO visualize
+
+testIsValidTX = do
+  u                  <- runIO createUUID
+  (_PK, cSK)         <- runIO generatePKSKIO
+  (aPK,_aSK)         <- runIO generatePKSKIO
+  (bPK,_bSK)         <- runIO generatePKSKIO
+  let Right cc        = createCoin   "cc"   u   cSK
+  let Right cToA      = transferCoin "cToA" cc  cSK aPK
+  let Right cToB      = transferCoin "cToB" cc  cSK bPK
+  let sCCInPool       = addTxToPool initialBCState (encodeSTX cc)
+  let (sCCInChain, _) = mine sCCInPool
+  let sTCInPool       = addTxToPool sCCInChain (encodeSTX cToA)
+  let (sTCInChain, _) = mine sTCInPool
+  describe "isValidTX" $do
+    it "  valid : CC not in pool nor chain" $
+      isValidTX initialBCState cc `shouldBe` Right ()
+    it "invalid : CC already pool" $
+      isValidTX sCCInPool      cc `shouldBe` Left "CC already in pool: cc"
+    it "invalid : CC already chain" $
+      isValidTX sCCInChain     cc `shouldBe` Left "CC already in chain: cc"
+    --------------------------------------------------
+    it "  valid : TC not in pool nor chain" $
+      isValidTX initialBCState cToA `shouldBe` Right ()
+    it "invalid : TC already pool" $
+      isValidTX sTCInPool      cToA `shouldBe` Left "TC already spent in pool: cToA"
+    it "invalid : TC already chain" $
+      isValidTX sTCInChain     cToB `shouldBe` Left "TC already spent in chain: cToB"
+
+------------------------------------------------------------------------------
+-- TODO : discuss "smart contract" UTXO
+
 mkUTXO :: Chain -> M.Map STXHash SignedTX
 mkUTXO c = go l m
  where
@@ -612,18 +624,16 @@ mkUTXO c = go l m
     (SignedTX CreateCoin{} _) -> go xs m0
     (SignedTX (TransferCoin _ stxHash _) _) -> go xs (M.delete stxHash m0)
 
-testMkUTXO addToChainX emptyChain = do
-  u                      <- runIO createUUID
-  (_creatorPK, creatorSK) <- runIO generatePKSKIO
-  (alicePK  , aliceSK)   <- runIO generatePKSKIO
-  (bobPK    , bobSK)     <- runIO generatePKSKIO
-  (jimPK    , _jimSK)    <- runIO generatePKSKIO
-  let Right cc    = createCoin   "cc"    u     creatorSK
-  let Right cToA  = transferCoin "cToA"  cc    creatorSK alicePK
-  let Right aToB1 = transferCoin "aToB1" cToA  aliceSK   bobPK
-  let Right _aToJ  = transferCoin "aToJ"  cToA  aliceSK   jimPK
-  let Right bToA  = transferCoin "bToA"  aToB1 bobSK     alicePK
-  let Right aToB2 = transferCoin "aToB2" bToA  aliceSK   bobPK
+testMkUTXO1 addToChainX emptyChain = do
+  u              <- runIO createUUID
+  (_PK, cSK)     <- runIO generatePKSKIO
+  (aPK, aSK)     <- runIO generatePKSKIO
+  (bPK, bSK)     <- runIO generatePKSKIO
+  let Right cc    = createCoin   "cc"    u     cSK
+  let Right cToA  = transferCoin "cToA"  cc    cSK aPK
+  let Right aToB1 = transferCoin "aToB1" cToA  aSK bPK
+  let Right bToA  = transferCoin "bToA"  aToB1 bSK aPK
+  let Right aToB2 = transferCoin "aToB2" bToA  aSK bPK
   let chain       = addToChainX emptyChain [cc, cToA, aToB1, bToA, aToB2]
   let chainBad    = addToChainX emptyChain     [cToA, aToB1, bToA, aToB2]
   describe "mkUTXO" $ do
@@ -635,3 +645,25 @@ testMkUTXO addToChainX emptyChain = do
     -- it just checks what has not been spent
     it "chainBad" $
       map getLabel (M.elems (mkUTXO (bcChain chainBad))) `shouldBe` ["aToB2"]
+
+testMkUTXO2 addToChainX emptyChain = do
+  (u1,u2,u3)
+    <- runIO ((,,) <$> createUUID     <*> createUUID     <*> createUUID)
+  ((_,c1SK),(_,c2SK),(_,c3SK))
+    <- runIO ((,,) <$> generatePKSKIO <*> generatePKSKIO <*> generatePKSKIO)
+  ((aPK,aSK),(bPK,bSK),(jPK,_))
+    <- runIO ((,,) <$> generatePKSKIO <*> generatePKSKIO <*> generatePKSKIO)
+  let Right c1     = createCoin   "c1" u1 c1SK
+  let Right c2     = createCoin   "c2" u2 c2SK
+  let Right c3     = createCoin   "c3" u3 c3SK
+  let Right c1ToA  = transferCoin "c1ToA"  c1     c1SK aPK
+  let Right c1AToB = transferCoin "c1AToB" c1ToA  aSK  bPK
+  let Right c1BToA = transferCoin "c1BToA" c1AToB bSK  aPK
+  let Right c2ToA  = transferCoin "c2ToA"  c2     c2SK aPK
+  let Right c2AToJ = transferCoin "c2AToJ" c2ToA  aSK  jPK
+  let chain        = addToChainX emptyChain
+                     [c1,c2,c3,c1ToA,c1AToB,c1BToA,c1BToA,c2ToA,c2AToJ]
+  describe "mkUTXO2" $
+    it "chain" $
+      S.fromList (map getLabel (M.elems (mkUTXO (bcChain chain))))
+      `shouldBe` S.fromList ["c1BToA", "c2AToJ", "c3"]

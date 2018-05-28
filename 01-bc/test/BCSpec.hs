@@ -24,5 +24,6 @@ spec = do
   ----------------
   testIsValidTX
   testIsValidCoin isValidCoin addToChainBCSpec emptyChainBCSpec
-  testMkUTXO addToChainBCSpec emptyChainBCSpec
+  testMkUTXO1 addToChainBCSpec emptyChainBCSpec
+  testMkUTXO2 addToChainBCSpec emptyChainBCSpec
 
