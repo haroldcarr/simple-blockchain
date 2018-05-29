@@ -87,7 +87,7 @@
 
 ------------------------------------------------------------------------------
 4-utxo1
-#+begin_src ditaa :file 4utxo1.png :cmdline -E -s 2.0 :cache yes
+#+begin_src ditaa :file 4-utxo1.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
 |c |<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/
@@ -99,7 +99,7 @@
 
 ------------------------------------------------------------------------------
 5-utxo2
-#+begin_src ditaa :file 5utxo2.png :cmdline -E -s 2.0 :cache yes
+#+begin_src ditaa :file 5-utxo2.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
 |c1|<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/
