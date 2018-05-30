@@ -1,9 +1,21 @@
-ABSTRACT
+* work in progress
+
+for now, suggest just looking at:
+
+- ./01-bc/src/BC.hs
+- ./01-bc/examples/z-diagrams.org
+- ./01-bc/examples/scenario-1
+- ./01-bc/examples/scenario-2
+- ./01-bc/src/GCoin.hs
+- ./01-bc/examples/scenario-gcoin
+
+------------------------------------------------------------------------------
+* abstract
 
 Blockchain technology seems to be a killer app for functional
-programming languages, witnessed by companies such as IOHK,
-Adjoint.IO, Digital Assert, Kadena and Tezos using Haskell and
-OCaml. But what is a blockchain? This talk will show the development
+programming languages, witnessed by companies such as [[https://iohk.io/][IOHK]],
+[[https://www.adjoint.io/][Adjoint.IO]], [[https://www.digitalasset.com/][Digital Asset]], [[http://kadena.io/][Kadena]] and [[https://tezos.com/][Tezos]] using [[https://www.haskell.org/][Haskell]] and
+[[https://ocaml.org/][OCaml]]. But what is a blockchain? This talk will show the development
 of a simple blockchain in Haskell: elucidating the four main parts: 1)
 the tamper-evident append-only ledger; 2) the consensus system that
 decides what entries go into the ledger (and in what order); 3) the
@@ -37,8 +49,8 @@ The concept of a ledger is built up from simple parts:
    coins, property deeds) transfers between named tables entires
    (i.e., accounts) leveraging public-key cryptography.
 
-
 ------------------------------------------------------------------------------
+* quotes
 
 https://www2.deloitte.com/ch/en/pages/strategy-operations/articles/blockchain-explained.html
 

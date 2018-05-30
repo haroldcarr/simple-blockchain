@@ -605,8 +605,8 @@ atomicModifyIORef_ i f =
 
 -- ===========================================================================
 ------------------------------------------------------------------------------
--- This only validates coin.  Does not prevent double spending.
 
+-- This only validates coin.  Does not prevent double spending.
 isValidCoin
   :: BCState   -- TODO: this is BCState (instead of Chain) because of addToChain in tests
                --       could pass one more function to test to convert test view of chain
@@ -635,7 +635,7 @@ emptyChainBCSpec = initialBCState
 ------------------------------------------------------------------------------
 
 -- This prevents double spending because it uses the blockchain.
-
+-- But it is inefficient since it searches every time.
 isValidTX :: BCState -> SignedTX -> Either Text ()
 isValidTX s tx = case tx of
   (SignedTX (CreateCoin l u) _) -> do
@@ -660,8 +660,7 @@ isValidTX s tx = case tx of
     (SignedTX (TransferCoin _ stxHash' _) _) -> stxHash == stxHash' -- already spent
     _                                        -> False
 
--- TODO visualize
-
+-- stack test --test-arguments "-m isValidTX"
 testIsValidTX = do
   u                  <- runIO createUUID
   (_PK, cSK)         <- runIO generatePKSKIO
@@ -702,6 +701,10 @@ mkUTXO c = go l m
     (SignedTX CreateCoin{} _) -> go xs m0
     (SignedTX (TransferCoin _ stxHash _) _) -> go xs (M.delete stxHash m0)
 
+{-
+../examples/scenario-gcoin/5-utxo1.png
+stack test --test-arguments "-m mkUTXO1"
+-}
 testMkUTXO1 addToChainX emptyChain = do
   u              <- runIO createUUID
   (_PK, cSK)     <- runIO generatePKSKIO
@@ -714,7 +717,7 @@ testMkUTXO1 addToChainX emptyChain = do
   let Right aToB2 = transferCoin "aToB2" bToA  aSK bPK
   let chain       = addToChainX emptyChain [cc, cToA, aToB1, bToA, aToB2]
   let chainBad    = addToChainX emptyChain     [cToA, aToB1, bToA, aToB2]
-  describe "mkUTXO" $ do
+  describe "mkUTXO1" $ do
     it "empty" $
       mkUTXO (bcChain emptyChain) `shouldBe` M.empty
     it "chain" $
@@ -724,6 +727,10 @@ testMkUTXO1 addToChainX emptyChain = do
     it "chainBad" $
       map getLabel (M.elems (mkUTXO (bcChain chainBad))) `shouldBe` ["aToB2"]
 
+{-
+../examples/scenario-gcoin/6-utxo2.png
+stack test --test-arguments "-m mkUTXO2"
+-}
 testMkUTXO2 addToChainX emptyChain = do
   (u1,u2,u3)
     <- runIO ((,,) <$> createUUID     <*> createUUID     <*> createUUID)
@@ -745,3 +752,10 @@ testMkUTXO2 addToChainX emptyChain = do
     it "chain" $
       S.fromList (map getLabel (M.elems (mkUTXO (bcChain chain))))
       `shouldBe` S.fromList ["c1BToA", "c2AToJ", "c3"]
+
+------------------------------------------------------------------------------
+-- TODO : ensure UTXO are rooted in CreateCoin
+-- TODO : hook up to BC operation as "Smart Contract"
+-- TODO : alternate smart contract (e.g., key/value store)
+-- ../../00-ledger/diagrams/6-smart-contract.png
+

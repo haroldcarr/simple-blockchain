@@ -108,10 +108,12 @@
 5-utxo1
 #+begin_src ditaa :file 5-utxo1.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
+|cc|  |tc|  |tc|  |tc|  |tc|
 |c |<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/
 
       /--\  /--\  /--\  /--\
+      |tc|  |tc|  |tc|  |tc|
       |a1|<-|b1|<-|a2|<-|b2|
       \--/  \--/  \--/  \--/
 #+end_src
@@ -120,14 +122,17 @@
 6-utxo2
 #+begin_src ditaa :file 6-utxo2.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
+|cc|  |tc|  |tc|  |tc|  |tc|
 |c1|<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/
 
 /--\  /--\  /--\
+|cc|  |tc|  |tc|
 |c2|<-|a |<-|j |
 \--/  \--/  \--/
 
 /--\
+|cc|
 |c3|
 \--/
 #+end_src

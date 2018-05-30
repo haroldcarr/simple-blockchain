@@ -135,7 +135,6 @@ transferCoin l fromCoin ownerSK toPK = do
       toCoin   = TransferCoin l fromHash toPK
   signTX ownerSK toCoin
 
--- stack test --test-arguments "-m GtransferCoin"
 testTransferCoin = do
   u            <- runIO createUUID
   (_  , gSK)   <- runIO generatePKSKIO
@@ -181,6 +180,10 @@ isValidCoinBase lookup cpk stx = case stx of
           l       -> l
       Left l -> Left l
 
+{-
+../examples/scenario-gcoin/3-is-valid-coin.png
+stack test --test-arguments "-m GtransferCoin"
+-}
 -- stack test --test-arguments "-m GisValidCoin"
 testIsValidCoin = do
   u              <- runIO createUUID
@@ -220,6 +223,9 @@ addToChainForTest :: M.Map STXHash SignedTX -> [SignedTX] -> M.Map STXHash Signe
 addToChainForTest = foldr (\x cc -> M.insert (hashSignedTX x) x cc)
 
 emptyChainForTest = M.empty
+
+-- ============================================================================
+-- ./BC.hs
 
 -- ============================================================================
 -- STOP
