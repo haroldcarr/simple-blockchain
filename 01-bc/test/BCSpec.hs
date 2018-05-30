@@ -5,7 +5,7 @@ module BCSpec where
 import           Test.Hspec
 ------------------------------------------------------------------------------
 import           BC
-import           GCoin (testIsValidCoin)
+import           GCoin (testIsValidCoinBase)
 
 spec :: Spec
 spec = do
@@ -23,7 +23,7 @@ spec = do
   testIsValidBlock
   ----------------
   testIsValidTX
-  testIsValidCoin isValidCoin addToChainBCSpec emptyChainBCSpec
+  testIsValidCoinBase isValidCoin addToChainBCSpec emptyChainBCSpec
   testMkUTXO1 addToChainBCSpec emptyChainBCSpec
   testMkUTXO2 addToChainBCSpec emptyChainBCSpec
 

@@ -8,5 +8,6 @@ spec :: Spec
 spec = do
   testCreateCoin
   testVerifyCreatedCoin
-  testTransferVerifyCoin
-  testIsValidCoin isValidCoinForTest addToChainForTest emptyChainForTest
+  testTransferCoin
+  testIsValidCoin
+  testIsValidCoinBase isValidCoinForTest addToChainForTest emptyChainForTest

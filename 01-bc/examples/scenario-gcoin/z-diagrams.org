@@ -44,8 +44,27 @@
 #+end_src
 
 ------------------------------------------------------------------------------
-3-double-spend
-#+begin_src ditaa :file 3-double-spend.png :cmdline -E -s 2.0 :cache yes
+3-is-valid-coin
+#+begin_src ditaa :file 3-is-valid-coin.png :cmdline -E -s 2.0 :cache yes
+            /--\
+            |tc|
+       +----|j |
+       |    \--/
+       v
+/--\  /--\  /--\  /--\  /--\
+|cc|  |tc|  |tc|  |tc|  |tc|
+|c |<-|a1|<-|b1|<-|a2|<-|b2|
+\--/  \--/  \--/  \--/  \--/
+
+      /--\  /--\  /--\  /--\
+      |tc|  |tc|  |tc|  |tc|
+      |a1|<-|b1|<-|a2|<-|b2|
+      \--/  \--/  \--/  \--/
+#+end_src
+
+------------------------------------------------------------------------------
+4-double-spend
+#+begin_src ditaa :file 4-double-spend.png :cmdline -E -s 2.0 :cache yes
 +--------------------------+     +--------------------------+
 | SignedTX                 |     | SignedTX                 |
 |  +--------------------+  |     |  +--------------------+  |
@@ -86,8 +105,8 @@
 #+end_src
 
 ------------------------------------------------------------------------------
-4-utxo1
-#+begin_src ditaa :file 4-utxo1.png :cmdline -E -s 2.0 :cache yes
+5-utxo1
+#+begin_src ditaa :file 5-utxo1.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
 |c |<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/
@@ -98,8 +117,8 @@
 #+end_src
 
 ------------------------------------------------------------------------------
-5-utxo2
-#+begin_src ditaa :file 5-utxo2.png :cmdline -E -s 2.0 :cache yes
+6-utxo2
+#+begin_src ditaa :file 6-utxo2.png :cmdline -E -s 2.0 :cache yes
 /--\  /--\  /--\  /--\  /--\
 |c1|<-|a1|<-|b1|<-|a2|<-|b2|
 \--/  \--/  \--/  \--/  \--/

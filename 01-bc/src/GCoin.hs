@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE NoImplicitPrelude  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE PackageImports     #-}
@@ -31,6 +32,7 @@ import           Crypto
 
 -- Hlint complains about DeriveAnyClass, but it is needed to S.Serialize RSA.PublicKey
 {-# ANN module ("HLint: ignore Unused LANGUAGE pragma"::Prelude.String) #-}
+{-# ANN module ("HLint: ignore Reduce duplication"::Prelude.String) #-}
 
 type PK    = RSA.PublicKey
 type SK    = RSA.PrivateKey
@@ -65,6 +67,11 @@ data SignedTX = SignedTX
   } deriving (Eq, Generic, Show)
 instance S.Serialize SignedTX
 
+{-
+../examples/scenario-gcoin/1-create-coin.png
+../examples/scenario-gcoin/2-transfer-coin.png
+-}
+
 ------------------------------------------------------------------------------
 
 createCoinIO :: Label -> SK -> IO (Either RSA.Error SignedTX)
@@ -72,13 +79,13 @@ createCoinIO l sk = do
   u <- createUUID
   return (createCoin l u sk)
 
-createCoin :: Label -> UUID -> SK -> Either RSA.Error SignedTX
-createCoin l u sk = signTX sk (CreateCoin l u)
-
 createUUID :: IO UUID
 createUUID = do
   u <- U.nextRandom
   return (UUID (BSL.toStrict (U.toByteString u)))
+
+createCoin :: Label -> UUID -> SK -> Either RSA.Error SignedTX
+createCoin l u sk = signTX sk (CreateCoin l u)
 
 signTX :: SK -> TX -> Either RSA.Error SignedTX
 signTX sk tx = E.mapRight (SignedTX tx) (signMsg sk (Msg (S.encode tx)))
@@ -90,10 +97,11 @@ stack repl
 (_,sk) <- generatePKSKIO
 createCoinIO "CC" sk
 -}
-
 testCreateCoin = do
   cc <- runIO (createCoin "cc" <$> createUUID <*> fmap snd generatePKSKIO)
-  describe "GcreateCoin" $ it "succeeds" $ cc `shouldSatisfy` isRight
+  describe "GcreateCoin" $
+    it "succeeds" $ cc `shouldSatisfy`
+    \case Right (SignedTX (CreateCoin _ _) _) -> True; _ -> False
 
 -- stack test --test-arguments "-m GverifyCreatedCoin"
 testVerifyCreatedCoin = do
@@ -105,7 +113,8 @@ testVerifyCreatedCoin = do
     it "succeeds" $
       verifyTXSig pk  cc `shouldSatisfy` isRight
     it "fails" $
-      verifyTXSig pk2 cc `shouldSatisfy` \(Left x) -> T.isPrefixOf "verifyTXSig False" x
+      verifyTXSig pk2 cc `shouldSatisfy`
+      \(Left x) -> T.isPrefixOf "verifyTXSig False" x
 
 verifyTXSig :: PK -> SignedTX -> Either Text ()
 verifyTXSig pk (SignedTX tx0 sig) = v tx0 sig
@@ -126,6 +135,17 @@ transferCoin l fromCoin ownerSK toPK = do
       toCoin   = TransferCoin l fromHash toPK
   signTX ownerSK toCoin
 
+-- stack test --test-arguments "-m GtransferCoin"
+testTransferCoin = do
+  u            <- runIO createUUID
+  (_  , gSK)   <- runIO generatePKSKIO
+  (aPK,   _)   <- runIO generatePKSKIO
+  let Right cc  = createCoin   "cc"   u  gSK
+  let cToA      = transferCoin "cToA" cc gSK aPK
+  describe "GtransferCoin" $
+    it "succeeds" $ cToA `shouldSatisfy`
+    \case Right (SignedTX (TransferCoin _ _ pk) _) | pk == aPK -> True; _ -> False
+
 hashSignedTX :: SignedTX -> STXHash
 hashSignedTX = STXHash . getHash . hash . encodeSTX
 
@@ -140,6 +160,9 @@ decodeSTX bs = case S.decode bs of
   Right s -> s
   _       -> error "decodeSignedTX" -- TODO
 
+-- | A coin is valid if, after following the transfer links
+--   it is rooted in a valid CreateCoin.
+--   This function does NOT detect double spending.
 isValidCoinBase
   :: (STXHash -> Either Text SignedTX) -- ^ lookup a TX "in the chain"
   -> PK                                -- ^ creator public key
@@ -158,34 +181,34 @@ isValidCoinBase lookup cpk stx = case stx of
           l       -> l
       Left l -> Left l
 
--- stack test --test-arguments "-m GverifyTransferCoin"
-testTransferVerifyCoin = do
+-- stack test --test-arguments "-m GisValidCoin"
+testIsValidCoin = do
   u              <- runIO createUUID
-  (cPK, cSK)     <- runIO generatePKSKIO
+  (gPK, gSK)     <- runIO generatePKSKIO
   (aPK, aSK)     <- runIO generatePKSKIO
   (bPK, bSK)     <- runIO generatePKSKIO
   (jPK, _)       <- runIO generatePKSKIO
-  let Right cc    = createCoin   "cc"    u     cSK
-  let Right cToA  = transferCoin "cToA"  cc    cSK aPK
+  let Right cc    = createCoin   "cc"    u     gSK
+  let Right cToA  = transferCoin "cToA"  cc    gSK aPK
   let Right aToB1 = transferCoin "aToB1" cToA  aSK bPK
-  let Right aToJ  = transferCoin "aToJ"  cToA  aSK jPK
+  let Right aToJ  = transferCoin "aToJ"  cToA  aSK jPK -- unspent
   let Right bToA  = transferCoin "bToA"  aToB1 bSK aPK
-  let Right aToB2 = transferCoin "aToB2" bToA  aSK bPK
-  let chain       = addToChainForTest M.empty [cc, cToA, aToB1, bToA]
-  let chainBad    = addToChainForTest M.empty     [cToA, aToB1, bToA]
-  describe "GverifyTransferCoin" $ do
+  let Right aToB2 = transferCoin "aToB2" bToA  aSK bPK -- unspent
+  let chain       = addToChainForTest emptyChainForTest [cc, cToA, aToB1, bToA]
+  let chainBad    = addToChainForTest emptyChainForTest     [cToA, aToB1, bToA]
+  describe "GisValidCoin" $ do
     it "chain aToJ" $
-      isValidCoinForTest chain    cPK aToJ  `shouldBe` Right ()
-    it "chain aToB1 (double spend)" $
-      isValidCoinForTest chain    cPK aToB1 `shouldBe` Right ()
+      isValidCoinForTest chain    gPK aToJ  `shouldBe` Right () -- unspent
+    it "chain aToB1 (double spend not detected)" $
+      isValidCoinForTest chain    gPK aToB1 `shouldBe` Right () -- spent
     it "bad sig" $
       let ccBadSTX@(SignedTX ccBadTX _) = cc { sSig = Signature "BAD" }
-      in isValidCoinForTest M.empty cPK ccBadSTX `shouldBe`
-      Left (verifyTXSigErr cPK ccBadTX)
+      in isValidCoinForTest M.empty gPK ccBadSTX `shouldBe`
+      Left (verifyTXSigErr gPK ccBadTX)
     it "aToB2" $
-      isValidCoinForTest chain    cPK aToB2 `shouldBe` Right ()
+      isValidCoinForTest chain    gPK aToB2 `shouldBe` Right () -- unspent
     it "chainBad aToB2" $
-      isValidCoinForTest chainBad cPK aToB2 `shouldBe`
+      isValidCoinForTest chainBad gPK aToB2 `shouldBe` -- unspent, not rooted
       Left (isValidCoinErrMsg <> show ((\(TransferCoin _ h _) -> h) (sTX cToA)))
 
 isValidCoinForTest c = isValidCoinBase lookup
@@ -198,34 +221,37 @@ addToChainForTest = foldr (\x cc -> M.insert (hashSignedTX x) x cc)
 
 emptyChainForTest = M.empty
 
+-- ============================================================================
+-- STOP
+
 -- This test is used in GCoinSpec and in BCSpec.
-testIsValidCoin isValidCoinX addToChainX emptyChain = do
-  u                      <- runIO createUUID
-  (creatorPK, creatorSK) <- runIO generatePKSKIO
-  (alicePK  , aliceSK)   <- runIO generatePKSKIO
-  (bobPK    , bobSK)     <- runIO generatePKSKIO
-  (jimPK    , _jimSK)    <- runIO generatePKSKIO
-  let Right cc    = createCoin   "cc"    u     creatorSK
-  let Right cToA  = transferCoin "cToA"  cc    creatorSK alicePK
-  let Right aToB1 = transferCoin "aToB1" cToA  aliceSK   bobPK
-  let Right aToJ  = transferCoin "aToJ"  cToA  aliceSK   jimPK
-  let Right bToA  = transferCoin "bToA"  aToB1 bobSK     alicePK
-  let Right aToB2 = transferCoin "aToB2" bToA  aliceSK   bobPK
+testIsValidCoinBase isValidCoinX addToChainX emptyChain = do
+  u              <- runIO createUUID
+  (gPK, gSK)     <- runIO generatePKSKIO
+  (aPK, aSK)     <- runIO generatePKSKIO
+  (bPK, bSK)     <- runIO generatePKSKIO
+  (jPK,   _)     <- runIO generatePKSKIO
+  let Right cc    = createCoin   "cc"    u     gSK
+  let Right cToA  = transferCoin "cToA"  cc    gSK aPK
+  let Right aToB1 = transferCoin "aToB1" cToA  aSK bPK
+  let Right aToJ  = transferCoin "aToJ"  cToA  aSK jPK
+  let Right bToA  = transferCoin "bToA"  aToB1 bSK aPK
+  let Right aToB2 = transferCoin "aToB2" bToA  aSK bPK
   let chain       = addToChainX emptyChain [cc, cToA, aToB1, bToA]
   let chainBad    = addToChainX emptyChain     [cToA, aToB1, bToA]
   describe "isValidCoin" $ do
     it "createCoin" $
-      isValidCoinX emptyChain    creatorPK   cc  `shouldBe` Right ()
+      isValidCoinX emptyChain    gPK   cc  `shouldBe` Right ()
     it "chain aToJ" $
-      isValidCoinX chain         creatorPK aToJ  `shouldBe` Right ()
+      isValidCoinX chain         gPK aToJ  `shouldBe` Right ()
     it "chain aToB1 (double spend)" $
-      isValidCoinX chain         creatorPK aToB1 `shouldBe` Right ()
+      isValidCoinX chain         gPK aToB1 `shouldBe` Right ()
     it "bad sig" $
       let ccBadSTX@(SignedTX ccBadTX _) = cc { sSig = Signature "BAD" }
-      in isValidCoinX emptyChain creatorPK ccBadSTX `shouldBe`
-      Left (verifyTXSigErr creatorPK ccBadTX)
+      in isValidCoinX emptyChain gPK ccBadSTX `shouldBe`
+      Left (verifyTXSigErr gPK ccBadTX)
     it "aToB2" $
-      isValidCoinX chain         creatorPK aToB2 `shouldBe` Right ()
+      isValidCoinX chain         gPK aToB2 `shouldBe` Right ()
     it "chainBad aToB2" $
-      isValidCoinX chainBad      creatorPK aToB2 `shouldBe`
+      isValidCoinX chainBad      gPK aToB2 `shouldBe`
       Left (isValidCoinErrMsg <> show ((\(TransferCoin _ h _) -> h) (sTX cToA)))

@@ -4,6 +4,61 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-
+------------------------------------------------------------------------------
+Other tutorials
+
+Haskell
+
+- Adjoint (Thomas Dietert)
+  - https://github.com/adjoint-io/nanocoin
+
+- Michael Burge
+  - http://www.michaelburge.us/2017/08/17/rolling-your-own-blockchain.html
+  - http://www.michaelburge.us/2017/08/31/roll-your-own-bitcoin-exchange.html
+
+Python
+
+  https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
+  - src for above: https://github.com/dvf/blockchain
+-}
+{-
+------------------------------------------------------------------------------
+Books/Papers
+
+No need to read all, but things I have found useful (suggest in the given order):
+
+Scorex Tutorial
+- https://github.com/ScorexFoundation/ScorexTutorial
+- Chapter 2 : Overview of Bitcoin
+
+"Mechanising Blockchain Consensus"
+- http://ilyasergey.net/papers/toychain-cpp18.pdf
+- good overview of main data structures and properties
+- formalization of BC consensus protocol (in Coq)
+
+https://assets.kpmg.com/content/dam/kpmg/pdf/2016/06/kpmg-blockchain-consensus-mechanism.pdf
+- dated but useful historical survey of consensus mechanisms
+
+Scorex Tutorial
+- https://github.com/ScorexFoundation/ScorexTutorial
+- Chapter 3 : A Blockchain System Design
+  - explores design space of BC architecture
+
+"Bitcoin and Cryptocurrency Technologies" (aka "Princeton Bitcoin Book")
+- http://bitcoinbook.cs.princeton.edu/
+- Arvind Narayanan, Andrew Miller, et. al.
+-}
+{-
+------------------------------------------------------------------------------
+Ledger
+../../00-ledger/diagrams/1-single-threaded-log.png
+../../00-ledger/diagrams/2-multi-threaded-log.png
+../../00-ledger/diagrams/3-multi-threaded-communication-log.png
+../../00-ledger/diagrams/4-multi-threaded-communication-ordered-log.png
+../../00-ledger/diagrams/5-distributed-log.png
+-}
+
 module BC where
 
 import qualified Control.Monad                        as CM
@@ -37,9 +92,6 @@ import           GCoin
 debug = False
 lBC   = "BC" :: P.String
 
--- https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
--- https://github.com/dvf/blockchain
-
 ------------------------------------------------------------------------------
 data Block = Block
   { bPrevHash :: BHash
@@ -51,7 +103,7 @@ data Block = Block
 type BHash       = BS.ByteString
 type BIndex      = Int
 type Transaction = BS.ByteString
-type TXs         = [Transaction] -- TODO
+type TXs         = [Transaction] -- TODO : Data.Sequence
 type Proof       = Integer
 
 genesisBlock :: Block
@@ -85,23 +137,23 @@ addTxToPool s tx =
 
 -- stack test --test-arguments "-m t02-addTxToPool-initialBCState"
 t02 = describe "t02-addTxToPool-initialBCState" $ it "adds new to pool" $
-        addTxToPool (addTxToPool initialBCState "TX1") "TX2" `shouldBe`
-        BCState { bcTXPool = ["TX1","TX2"]
-                , bcChain = [Block {bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}]
-                , bcProofDifficulty = 4}
+  addTxToPool (addTxToPool initialBCState "TX1") "TX2" `shouldBe`
+  BCState { bcTXPool = ["TX1","TX2"]
+          , bcChain = [Block {bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}]
+          , bcProofDifficulty = 4}
 
 txInPoolOrChain :: Transaction -> BCState -> Bool
 txInPoolOrChain tx = fst . searchPoolAndChain (==tx) "JUNK"
 
 -- stack test --test-arguments "-m t03-addTxToPool"
 t03 = describe "t03-addTxToPool" $ it "does not add duplicates to pool" $ do
-        let s  = addTxToPool (addTxToPool initialBCState "TX1") "TX2"
-        let s' = addTxToPool (addTxToPool s              "TX1") "TX2"
-         in s' `shouldBe`
-          BCState
-          { bcTXPool = ["TX1","TX2"]
-          , bcChain = [Block {bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}]
-          , bcProofDifficulty = 4}
+  let s  = addTxToPool (addTxToPool initialBCState "TX1") "TX2"
+  let s' = addTxToPool (addTxToPool s              "TX1") "TX3"
+   in s' `shouldBe`
+      BCState
+      { bcTXPool = ["TX1","TX2","TX3"]
+      , bcChain = [Block {bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}]
+      , bcProofDifficulty = 4}
 
 searchPoolAndChain
   :: (Transaction -> Bool)
@@ -128,7 +180,7 @@ searchChain
   -> (Bool, Transaction)
 searchChain f z = foldr go (False, z)
  where
-  go block blocks = let r@(b,_) = searchPool f z (bTXs block) -- TODO "searchPool"
+  go block blocks = let r@(b,_) = searchPool f z (bTXs block)
                      in if b then r else blocks
 
 ------------------------------------------------------------------------------
@@ -151,29 +203,28 @@ addBlock s pHash proof =
    in (s', last (bcChain s'))
 
 -- stack test --test-arguments "-m testMine"
-testMine =
-  describe "testMine" $ do
-    it "addBlock" $
-      let (s, _) = mine (addTxToPool (addTxToPool initialBCState "TX1") "TX2")
-       in s `shouldBe`
-         BCState { bcTXPool = []
-                 , bcChain = [Block { bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}
-                             ,Block { bPrevHash = "\202\169KU\139\ETX\212\&3W\145`\229\224S\159\177\253\nF\167\158\227\250\255\244\v\207\228z\233\171\237"
-                                    , bIndex = 1
-                                    , bTXs = ["TX1","TX2"]
-                                    , bProof = 134530}]
-                 , bcProofDifficulty = 4}
-    it "TXs in chain are not added to pool" $ do
-      let (s, _) = mine (addTxToPool (addTxToPool initialBCState "TX1") "TX2")
-      let  s'    =       addTxToPool (addTxToPool s              "TX1") "TX2"
-       in s' `shouldBe`
-         BCState { bcTXPool = []
-                 , bcChain = [Block { bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}
-                             ,Block { bPrevHash = "\202\169KU\139\ETX\212\&3W\145`\229\224S\159\177\253\nF\167\158\227\250\255\244\v\207\228z\233\171\237"
-                                    , bIndex = 1
-                                    , bTXs = ["TX1","TX2"]
-                                    , bProof = 134530}]
-                 , bcProofDifficulty = 4}
+testMine = describe "testMine" $ do
+  it "addBlock" $
+    let (s, _) = mine (addTxToPool (addTxToPool initialBCState "TX1") "TX2") in
+    s `shouldBe`
+     BCState { bcTXPool = []
+             , bcChain = [Block { bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}
+                         ,Block { bPrevHash = "\202\169KU\139\ETX\212\&3W\145`\229\224S\159\177\253\nF\167\158\227\250\255\244\v\207\228z\233\171\237"
+                                , bIndex = 1
+                                , bTXs = ["TX1","TX2"]
+                                , bProof = 134530}]
+             , bcProofDifficulty = 4}
+  it "TXs in chain are not added to pool" $ do
+    let (s, _) = mine (addTxToPool (addTxToPool initialBCState "TX1") "TX2")
+    let  s'    =       addTxToPool (addTxToPool s              "TX1") "TX2"
+    s' `shouldBe`
+     BCState { bcTXPool = []
+             , bcChain = [Block { bPrevHash = "1", bIndex = 0, bTXs = [], bProof = 100}
+                         ,Block { bPrevHash = "\202\169KU\139\ETX\212\&3W\145`\229\224S\159\177\253\nF\167\158\227\250\255\244\v\207\228z\233\171\237"
+                                , bIndex = 1
+                                , bTXs = ["TX1","TX2"]
+                                , bProof = 134530}]
+             , bcProofDifficulty = 4}
 
 ------------------------------------------------------------------------------
 -- | SHA-256 hash of a Block
@@ -205,12 +256,11 @@ proofOfWork proofDifficulty lastBlock =
 (bcTX1,_) = mine (addTxToPool initialBCState "TX1")
 
 -- stack test --test-arguments "-m proofOfWork"
-testProofOfWork =
-  describe "proofOfWork" $ do
-    it "from genesisBlock" $
-      proofOfWork 4 genesisBlock `shouldBe`  bProof (bcChain bcTX1 !! 1)
-    it "from genesisBlock + 1" $
-      proofOfWork 4 (bcChain bcTX1 !! 1) `shouldBe` 52668
+testProofOfWork = describe "proofOfWork" $ do
+  it "from genesisBlock" $
+    proofOfWork 4 genesisBlock `shouldBe`  bProof (bcChain bcTX1 !! 1)
+  it "from genesisBlock + 1" $
+    proofOfWork 4 (bcChain bcTX1 !! 1) `shouldBe` 52668
 
 -- | Validates the Proof
 --   lastProof : proof of previous block
@@ -227,16 +277,15 @@ evidence lastProof lastHash proof =
  in Hex.hex (BC.hash guess)
 
 -- stack test --test-arguments "-m evidence"
-testEvidence =
-  describe "evidence" $ do
-    it "from genesisBlock" $
-      evidence (bProof genesisBlock) (hashBlock genesisBlock) (proofOfWork 4 genesisBlock)
-      `shouldBe`
-     "0000DDF9FB09F9A9C5A0EF57DC3E2916633BEDB95B38D54BDBFFF0B7D4D6E515"
-    it "from genesisBlock + 1" $
-      evidence (bProof (bcChain bcTX1 !! 1)) (hashBlock (bcChain bcTX1 !! 1))  52668
-      `shouldBe`
-      "000072456DC7CC3975C0CC3543B6BA201E6F4D056679970C3644D2DDEB4EEA67"
+testEvidence = describe "evidence" $ do
+  it "from genesisBlock" $
+    evidence (bProof genesisBlock) (hashBlock genesisBlock) (proofOfWork 4 genesisBlock)
+    `shouldBe`
+    "0000DDF9FB09F9A9C5A0EF57DC3E2916633BEDB95B38D54BDBFFF0B7D4D6E515"
+  it "from genesisBlock + 1" $
+    evidence (bProof (bcChain bcTX1 !! 1)) (hashBlock (bcChain bcTX1 !! 1))  52668
+    `shouldBe`
+    "000072456DC7CC3975C0CC3543B6BA201E6F4D056679970C3644D2DDEB4EEA67"
 
 ------------------------------------------------------------------------------
 -- | CONSENSUS ALGORITHM
@@ -273,12 +322,12 @@ sTX0 :: BCState
 
 -- stack test --test-arguments "-m longestChain1"
 testLongestChain1 = describe "longestChain1" $ do
-    it "found longer chain" $
-      longestChain initialBCState  [bcChain sTX0]
-      `shouldBe` (sTX0 , (True , ""))
-    it "no    longer chain" $
-      longestChain sTX0          [bcChain initialBCState]
-      `shouldBe` (sTX0 , (False, ""))
+  it "found longer chain" $
+    longestChain initialBCState  [bcChain sTX0]
+    `shouldBe` (sTX0 , (True , ""))
+  it "no    longer chain" $
+    longestChain sTX0          [bcChain initialBCState]
+    `shouldBe` (sTX0 , (False, ""))
 
 eLongerChainAndPoolUpdateIn, e1LongerChainAndPoolUpdateOut :: BCState
 eLongerChainAndPoolUpdateIn   = initialBCState { bcTXPool = ["TX-0","TX-should-stay"] }
@@ -392,6 +441,11 @@ data IOState = IOState
 type Address = P.String
 type IOEnv   = IOR.IORef IOState
 
+{-
+../examples/scenario-1/1-initial.png
+./examples/scenario-1/0-start
+./examples/scenario-1/1-initial
+-}
 initializeIOEnv :: Address -> IO IOEnv
 initializeIOEnv thisNode =
   IOR.newIORef (IOState initialBCState [] thisNode)
@@ -405,11 +459,21 @@ getBCState f = fmap (f . ioBCState) . IOR.readIORef
 setBCState :: IOState -> BCState -> IOState
 setBCState i b = i { ioBCState = b }
 
+{-
+../examples/scenario-1/2-txs.png
+./examples/scenario-1/2-txs
+../examples/scenario-1/3-after-txs.png
+./examples/scenario-1/3-after-txs
+-}
 addTxToPoolIO :: IOEnv -> Transaction -> IO ()
 addTxToPoolIO env tx =
   atomicModifyIORef_ env $ \s ->
     setBCState s (addTxToPool (ioBCState s) tx)
 
+{-
+../examples/scenario-1/4-three-mines-block-3B1.png
+./examples/scenario-1/4-three-mines-block-3B1
+-}
 -- | add new block containing all TXs in pool to Chain
 mineIO :: IOEnv -> IO Block
 mineIO env =
@@ -417,6 +481,12 @@ mineIO env =
     let (s',b) = mine (ioBCState s)
      in (setBCState s s', b)
 
+{-
+../examples/scenario-1/5-longest-chain-after-3B1.png
+./examples/scenario-1/5-longest-chain-after-3B1
+../examples/scenario-1/6-tx31-arrives.png
+./examples/scenario-1/6-tx31-arrives
+-}
 longestChainIO :: IOEnv -> IO Bool
 longestChainIO env = do
   nodes  <- getIOState ioNodes env
@@ -524,6 +594,14 @@ sendTxToPeers env tx = do
 atomicModifyIORef_ :: IOR.IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ i f =
   IOR.atomicModifyIORef' i (\a -> (f a, ()))
+
+{-
+../examples/scenario-2/
+./examples/scenario-2/
+-}
+
+-- ===========================================================================
+-- ./GCoin.hs
 
 -- ===========================================================================
 ------------------------------------------------------------------------------
