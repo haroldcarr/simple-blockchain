@@ -186,7 +186,7 @@ searchChain f z = foldr go (False, z)
 ------------------------------------------------------------------------------
 mine :: BCState -> (BCState, Block)
 mine s =
-  let lastBlock = last (bcChain s)
+  let lastBlock = last (bcChain s) -- TODO
       pd        = bcProofDifficulty s
       proof     = proofOfWork pd lastBlock
       pHash     = hashBlock lastBlock
@@ -200,7 +200,7 @@ addBlock s pHash proof =
                 (bcTXPool s)
                 proof
       s' = s { bcTXPool = [], bcChain = bcChain s ++ [b] } -- TODO
-   in (s', last (bcChain s'))
+   in (s', last (bcChain s')) -- TODO
 
 -- stack test --test-arguments "-m testMine"
 testMine = describe "testMine" $ do
@@ -237,19 +237,15 @@ hashBlock = BC.hash . BSC8.pack . show
 ------------------------------------------------------------------------------
 -- | Proof of Work Algorithm:
 --   - Find a number p' such that
---         hash(p <> p' <> hlb)
---     contains leading 4 zeroes
---     where
---       p is the previous proof
---       p' is the new proof
---       hlb is hash(lastBlock)
+--       hash(hash-last-block <> last-proof <> new-proof)
+--     contains leading N zeroes (where N is "ProofDifficulty")
 proofOfWork :: ProofDifficulty -> Block -> Proof
 proofOfWork proofDifficulty lastBlock =
   let lastProof = bProof    lastBlock
       lastHash  = hashBlock lastBlock
-      go proof next =
-        if validProof proofDifficulty lastProof lastHash proof
-        then proof
+      go newProof next =
+        if validProof proofDifficulty lastHash lastProof newProof
+        then newProof
         else next
   in foldr go 0 [0 .. ]
 
@@ -258,32 +254,32 @@ proofOfWork proofDifficulty lastBlock =
 -- stack test --test-arguments "-m proofOfWork"
 testProofOfWork = describe "proofOfWork" $ do
   it "from genesisBlock" $
-    proofOfWork 4 genesisBlock `shouldBe`  bProof (bcChain bcTX1 !! 1)
+    proofOfWork 4 genesisBlock `shouldBe` bProof (bcChain bcTX1 !! 1)
   it "from genesisBlock + 1" $
     proofOfWork 4 (bcChain bcTX1 !! 1) `shouldBe` 52668
 
 -- | Validates the Proof
---   lastProof : proof of previous block
 --   lastHash  : hash of previous block
---   proof     : current proof
-validProof :: ProofDifficulty -> Proof -> BHash -> Proof-> Bool
-validProof proofDifficulty lastProof lastHash proof =
- let guess = evidence lastProof lastHash proof
+--   lastProof : proof of previous block
+--   proof     : new proof
+validProof :: ProofDifficulty -> BHash -> Proof -> Proof -> Bool
+validProof proofDifficulty lastHash  lastProof newProof =
+ let guess = evidence lastHash lastProof newProof
   in BS.take proofDifficulty guess == BSC8.replicate proofDifficulty '0'
 
-evidence :: Proof -> BHash -> Proof -> BHash
-evidence lastProof lastHash proof =
- let guess = BSC8.pack (show lastProof) <> BSC8.pack (show proof) <> lastHash
+evidence :: BHash -> Proof -> Proof -> BHash
+evidence lastHash lastProof newProof =
+ let guess = BSC8.pack (show lastProof) <> BSC8.pack (show newProof) <> lastHash
  in Hex.hex (BC.hash guess)
 
 -- stack test --test-arguments "-m evidence"
 testEvidence = describe "evidence" $ do
   it "from genesisBlock" $
-    evidence (bProof genesisBlock) (hashBlock genesisBlock) (proofOfWork 4 genesisBlock)
+    evidence (hashBlock genesisBlock) (bProof genesisBlock) (proofOfWork 4 genesisBlock)
     `shouldBe`
     "0000DDF9FB09F9A9C5A0EF57DC3E2916633BEDB95B38D54BDBFFF0B7D4D6E515"
   it "from genesisBlock + 1" $
-    evidence (bProof (bcChain bcTX1 !! 1)) (hashBlock (bcChain bcTX1 !! 1))  52668
+    evidence (hashBlock (bcChain bcTX1 !! 1)) (bProof (bcChain bcTX1 !! 1)) 52668
     `shouldBe`
     "000072456DC7CC3975C0CC3543B6BA201E6F4D056679970C3644D2DDEB4EEA67"
 
@@ -413,7 +409,7 @@ isValidBlock :: ProofDifficulty -> (Int, Block, Block) -> Either T.Text ()
 isValidBlock pd (i, validBlock, checkBlock) = do
   CM.when   (hashBlock validBlock /= bPrevHash checkBlock)
             (Left ("invalid bPrevHash at " <> T.pack (show i)))
-  CM.unless (validProof pd (bProof validBlock) (bPrevHash checkBlock) (bProof checkBlock))
+  CM.unless (validProof pd (bPrevHash checkBlock) (bProof validBlock) (bProof checkBlock))
             (Left ("invalid bProof at "    <> T.pack (show i)))
   return ()
 
