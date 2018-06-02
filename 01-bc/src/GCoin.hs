@@ -63,7 +63,7 @@ instance S.Serialize TX
 
 data SignedTX = SignedTX
   { sTX  :: TX
-  , sSig :: Signature
+  , sSig :: Signature     -- ^ signed by entity sending coin
   } deriving (Eq, Generic, Show)
 instance S.Serialize SignedTX
 
@@ -164,7 +164,7 @@ decodeSTX bs = case S.decode bs of
 --   This function does NOT detect double spending.
 isValidCoinBase
   :: (STXHash -> Either Text SignedTX) -- ^ lookup a TX "in the chain"
-  -> PK                                -- ^ creator public key
+  -> PK                                -- ^ coin creator public key
   -> SignedTX                          -- ^ TX to verify
   -> Either Text ()
 isValidCoinBase lookup cpk stx = case stx of

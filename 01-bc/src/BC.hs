@@ -286,17 +286,17 @@ testEvidence = describe "evidence" $ do
 ------------------------------------------------------------------------------
 -- | CONSENSUS ALGORITHM
 --   Chooses longest chain in the network.
---   Returns (updated-environment, (True , "") if chain was replaced.
---   Returns (given-environment  , (False, "") if chain was NOT replaced.
---   Returns (given-environment  , (False, failure-reason) if the new chain was not valid
+--   Returns (updated-environment, (True , "")             if chain was replaced.
+--   Returns (given-environment  , (False, "")             if chain was NOT replaced.
+--   Returns (given-environment  , (False, failure-reason) if a chain was not valid
 longestChain :: BCState -> [Chain] -> (BCState, (Bool, P.String))
 longestChain s chains = go
  where
-  go = let chain' = foldr (\a b -> if length a > length b then a else b) (bcChain s) chains
+  go = let chain' = foldl (\a b -> if length a > length b then a else b) (bcChain s) chains
        in if bcChain s /= chain' then
             case isValidChain (bcProofDifficulty s) chain' of
               Right _  ->
-                ( s { bcChain = chain'
+                ( s { bcChain  = chain'
                     , bcTXPool = resolveTXs s chain'
                     }
                 , (True, ""))
