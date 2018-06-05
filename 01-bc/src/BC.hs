@@ -1,28 +1,25 @@
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-{-# OPTIONS_GHC -fno-warn-unused-do-bind     #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 ------------------------------------------------------------------------------
+
+                    Let's Build a Blockchain (in Haskell)
+
+                         harold.carr@gmail.com
+
+                            Oracle Labs
+
+           https://github.com/haroldcarr/simple-blockchain
+
+------------------------------------------------------------------------------
 Other tutorials
-
 Haskell
-
-- Adjoint (Thomas Dietert)
+- Thomas Dietert (adjoint.io) "Building a Blockchain in Haskell"
   - https://github.com/adjoint-io/nanocoin
-
 - Michael Burge
   - http://www.michaelburge.us/2017/08/17/rolling-your-own-blockchain.html
   - http://www.michaelburge.us/2017/08/31/roll-your-own-bitcoin-exchange.html
-
 Python
-
   https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
   - src for above: https://github.com/dvf/blockchain
--}
-{-
 ------------------------------------------------------------------------------
 Books/Papers
 
@@ -49,15 +46,22 @@ Scorex Tutorial
 - http://bitcoinbook.cs.princeton.edu/
 - Arvind Narayanan, Andrew Miller, et. al.
 -}
-{-
 ------------------------------------------------------------------------------
+{-
 Ledger
 ../../00-ledger/diagrams/1-single-threaded-log.png
 ../../00-ledger/diagrams/2-multi-threaded-log.png
 ../../00-ledger/diagrams/3-multi-threaded-communication-log.png
 ../../00-ledger/diagrams/4-multi-threaded-communication-ordered-log.png
 ../../00-ledger/diagrams/5-distributed-log.png
+../../00-ledger/diagrams/6-smart-contract.png
 -}
+
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind     #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module BC where
 
@@ -94,10 +98,10 @@ lBC   = "BC" :: P.String
 
 ------------------------------------------------------------------------------
 data Block = Block
-  { bPrevHash :: BHash
-  , bIndex    :: BIndex
-  , bTXs      :: TXs
-  , bProof    :: Proof
+  { bPrevHash :: !BHash
+  , bIndex    :: !BIndex
+  , bTXs      :: !TXs
+  , bProof    :: !Proof -- aka "nonce"
   } deriving (Eq, Read, Show)
 
 type BHash       = BS.ByteString
@@ -111,9 +115,9 @@ genesisBlock  = Block "1" 0 [] 100
 
 ------------------------------------------------------------------------------
 data BCState = BCState
-  { bcTXPool          :: TXs
-  , bcChain           :: Chain
-  , bcProofDifficulty :: ProofDifficulty
+  { bcTXPool          :: !TXs
+  , bcChain           :: !Chain
+  , bcProofDifficulty :: !ProofDifficulty
   } deriving (Eq, Show)
 
 type Chain           = [Block] -- TODO : Data.Sequence
@@ -130,6 +134,7 @@ t01 = describe "t01-initialBCState" $ it "has empty pool and only genesisBlock i
           , bcProofDifficulty = 4}
 
 ------------------------------------------------------------------------------
+-- ../../00-ledger/diagrams/5-distributed-log.png
 addTxToPool :: BCState -> Transaction -> BCState
 addTxToPool s tx =
   if txInPoolOrChain tx s then s
@@ -184,6 +189,7 @@ searchChain f z = foldr go (False, z)
                      in if b then r else blocks
 
 ------------------------------------------------------------------------------
+-- ../../00-ledger/diagrams/5-distributed-log.png
 mine :: BCState -> (BCState, Block)
 mine s =
   let lastBlock = last (bcChain s) -- TODO
@@ -238,23 +244,23 @@ hashBlock = BC.hash . BSC8.pack . show
 -- | Proof of Work Algorithm:
 --   - Find a number p' such that
 --       hash(hash-last-block <> last-proof <> new-proof)
---     contains leading N zeroes (where N is "ProofDifficulty")
+--     contains N leading zeroes (where N is "ProofDifficulty")
 proofOfWork :: ProofDifficulty -> Block -> Proof
-proofOfWork proofDifficulty lastBlock =
-  let lastProof = bProof    lastBlock
-      lastHash  = hashBlock lastBlock
-      go newProof next =
-        if validProof proofDifficulty lastHash lastProof newProof
-        then newProof
-        else next
-  in foldr go 0 [0 .. ]
+proofOfWork proofDifficulty lastBlock = foldr go 0 [0 .. ]
+ where
+  lastProof = bProof    lastBlock
+  lastHash  = hashBlock lastBlock
+  go newProof next =
+    if validProof proofDifficulty lastHash lastProof newProof
+    then newProof
+    else next
 
 (bcTX1,_) = mine (addTxToPool initialBCState "TX1")
 
 -- stack test --test-arguments "-m proofOfWork"
 testProofOfWork = describe "proofOfWork" $ do
   it "from genesisBlock" $
-    proofOfWork 4 genesisBlock `shouldBe` bProof (bcChain bcTX1 !! 1)
+    proofOfWork 4 genesisBlock `shouldBe` bProof (bcChain bcTX1 !! 1) -- get last block
   it "from genesisBlock + 1" $
     proofOfWork 4 (bcChain bcTX1 !! 1) `shouldBe` 52668
 
@@ -284,11 +290,12 @@ testEvidence = describe "evidence" $ do
     "000072456DC7CC3975C0CC3543B6BA201E6F4D056679970C3644D2DDEB4EEA67"
 
 ------------------------------------------------------------------------------
+-- ../../00-ledger/diagrams/5-distributed-log.png
 -- | CONSENSUS ALGORITHM
 --   Chooses longest chain in the network.
---   Returns (updated-environment, (True , "")             if chain was replaced.
---   Returns (given-environment  , (False, "")             if chain was NOT replaced.
---   Returns (given-environment  , (False, failure-reason) if a chain was not valid
+--   Returns (updated-environment, (True , ""))             if chain was replaced.
+--   Returns (given-environment  , (False, ""))             if chain was NOT replaced.
+--   Returns (given-environment  , (False, failure-reason)) if a chain was not valid
 longestChain :: BCState -> [Chain] -> (BCState, (Bool, P.String))
 longestChain s chains = go
  where
@@ -341,7 +348,7 @@ s1NotLost :: BCState
 s2NotLost :: BCState
 s2NotLost =
   let (etx1,_) = mine (addTxToPool initialBCState "TX1")
-      (etx2,_) = mine (addTxToPool etx1       "TX3")
+      (etx2,_) = mine (addTxToPool etx1           "TX3")
    in  etx2
 
 s1NotLastAfterLongestChain :: BCState
@@ -429,9 +436,9 @@ testIsValidBlock = describe "isValidBlock" $ do
 -- IO
 
 data IOState = IOState
-  { ioBCState  :: BCState
-  , ioNodes    :: [Address]
-  , ioThisNode :: Address
+  { ioBCState  :: !BCState
+  , ioNodes    :: ![Address]
+  , ioThisNode :: !Address
   } deriving (Eq, Show)
 
 type Address = P.String
@@ -629,7 +636,7 @@ addToChainBCSpec s = addToChain s . map encodeSTX
 emptyChainBCSpec = initialBCState
 
 ------------------------------------------------------------------------------
-
+-- ../examples/scenario-gcoin/4-double-spend.png
 -- This prevents double spending because it uses the blockchain.
 -- But it is inefficient since it searches every time.
 isValidTX :: BCState -> SignedTX -> Either Text ()
@@ -686,7 +693,7 @@ testIsValidTX = do
 
 ------------------------------------------------------------------------------
 -- TODO : discuss "smart contract" UTXO
-
+-- ../examples/scenario-gcoin/5-utxo1.png
 mkUTXO :: Chain -> M.Map STXHash SignedTX
 mkUTXO c = go l m
  where
@@ -694,13 +701,10 @@ mkUTXO c = go l m
   m = foldr (\stx a -> M.insert (hashSignedTX stx) stx a) M.empty l
   go    []  m0 = m0
   go (x:xs) m0 = case x of
-    (SignedTX CreateCoin{} _) -> go xs m0
+    (SignedTX CreateCoin{}               _) -> go xs m0
     (SignedTX (TransferCoin _ stxHash _) _) -> go xs (M.delete stxHash m0)
 
-{-
-../examples/scenario-gcoin/5-utxo1.png
-stack test --test-arguments "-m mkUTXO1"
--}
+-- stack test --test-arguments "-m mkUTXO1"
 testMkUTXO1 addToChainX emptyChain = do
   u              <- runIO createUUID
   (_PK, cSK)     <- runIO generatePKSKIO
@@ -754,4 +758,5 @@ testMkUTXO2 addToChainX emptyChain = do
 -- TODO : hook up to BC operation as "Smart Contract"
 -- TODO : alternate smart contract (e.g., key/value store)
 -- ../../00-ledger/diagrams/6-smart-contract.png
+-- stack test
 

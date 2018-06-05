@@ -52,28 +52,26 @@ deriving instance Generic     RSA.PublicKey
 deriving instance S.Serialize RSA.PublicKey
 
 ------------------------------------------------------------------------------
-
-data TX
-  = CreateCoin   Label UUID
-  | TransferCoin Label
-                 STXHash  -- ^ hash of coin being spent
-                 PK       -- ^ public key of entity receiving coin
-  deriving (Eq, Generic, Show)
-instance S.Serialize TX
-
-data SignedTX = SignedTX
-  { sTX  :: TX
-  , sSig :: Signature     -- ^ signed by entity sending coin
-  } deriving (Eq, Generic, Show)
-instance S.Serialize SignedTX
-
 {-
 ../examples/scenario-gcoin/1-create-coin.png
 ../examples/scenario-gcoin/2-transfer-coin.png
 -}
+data TX
+  = CreateCoin   !Label !UUID
+  | TransferCoin !Label
+                 !STXHash  -- ^ hash of coin being spent
+                 !PK       -- ^ public key of entity receiving coin
+  deriving (Eq, Generic, Show)
+instance S.Serialize TX
+
+data SignedTX = SignedTX
+  { sTX  :: !TX
+  , sSig :: !Signature     -- ^ signed by entity sending coin
+  } deriving (Eq, Generic, Show)
+instance S.Serialize SignedTX
 
 ------------------------------------------------------------------------------
-
+-- ../examples/scenario-gcoin/1-create-coin.png
 createCoinIO :: Label -> SK -> IO (Either RSA.Error SignedTX)
 createCoinIO l sk = do
   u <- createUUID
@@ -128,7 +126,7 @@ verifyTXSigErr pk tx =
           (show pk) (show tx)
 
 ------------------------------------------------------------------------------
-
+-- ../examples/scenario-gcoin/2-transfer-coin.png
 transferCoin :: Label -> SignedTX -> SK -> PK -> Either RSA.Error SignedTX
 transferCoin l fromCoin ownerSK toPK = do
   let fromHash = hashSignedTX fromCoin
