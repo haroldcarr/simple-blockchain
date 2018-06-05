@@ -13,17 +13,17 @@
 Other tutorials
 Haskell
 - Thomas Dietert (adjoint.io) "Building a Blockchain in Haskell"
-  - https://github.com/adjoint-io/nanocoin
+  - https://github.com/tdietert/haskell-blockchain-workshop
 - Michael Burge
   - http://www.michaelburge.us/2017/08/17/rolling-your-own-blockchain.html
   - http://www.michaelburge.us/2017/08/31/roll-your-own-bitcoin-exchange.html
 Python
   https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
-  - src for above: https://github.com/dvf/blockchain
+  - src : https://github.com/dvf/blockchain
 ------------------------------------------------------------------------------
 Books/Papers
 
-No need to read all, but things I have found useful (suggest in the given order):
+Things I have found useful (suggest in the given order):
 
 Scorex Tutorial
 - https://github.com/ScorexFoundation/ScorexTutorial
@@ -600,7 +600,9 @@ atomicModifyIORef_ i f =
 
 {-
 ../examples/scenario-2/
-./examples/scenario-2/
+./examples/scenario-2/0-start
+./examples/scenario-2/1-initial
+./examples/scenario-2/s2
 -}
 
 -- ===========================================================================
@@ -692,7 +694,6 @@ testIsValidTX = do
       isValidTX sTCInChain     cToB `shouldBe` Left "TC already spent in chain: cToB"
 
 ------------------------------------------------------------------------------
--- TODO : discuss "smart contract" UTXO
 -- ../examples/scenario-gcoin/5-utxo1.png
 mkUTXO :: Chain -> M.Map STXHash SignedTX
 mkUTXO c = go l m
