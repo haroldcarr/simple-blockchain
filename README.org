@@ -1,13 +1,57 @@
 * work in progress
 
-for now, suggest just looking at:
+suggested reading order:
 
-- ./01-bc/src/BC.hs
-- ./01-bc/examples/z-diagrams.org
-- ./01-bc/examples/scenario-1
-- ./01-bc/examples/scenario-2
-- ./01-bc/src/GCoin.hs
-- ./01-bc/examples/scenario-gcoin
+- ./examples/scenario-0
+- ./src/BC.hs
+- ./examples/z-diagrams.org
+- ./examples/scenario-1
+- ./examples/scenario-2
+- ./src/GCoin.hs
+- ./examples/scenario-gcoin
+
+------------------------------------------------------------------------------
+* other tutorials
+
+** Haskell
+
+- Thomas Dietert (adjoint.io) "Building a Blockchain in Haskell"
+  - https://github.com/tdietert/haskell-blockchain-workshop
+
+- Michael Burge
+  - http://www.michaelburge.us/2017/08/17/rolling-your-own-blockchain.html
+  - http://www.michaelburge.us/2017/08/31/roll-your-own-bitcoin-exchange.html
+
+** Python
+
+- https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
+  - src : https://github.com/dvf/blockchain
+
+------------------------------------------------------------------------------
+* Books/Papers
+
+Things I have found useful (suggest in the given order):
+
+Scorex Tutorial
+- https://github.com/ScorexFoundation/ScorexTutorial
+- Chapter 2 : Overview of Bitcoin
+
+"Mechanising Blockchain Consensus"
+- http://ilyasergey.net/papers/toychain-cpp18.pdf
+- good overview of main data structures and properties
+- formalization of BC consensus protocol (in Coq)
+
+https://assets.kpmg.com/content/dam/kpmg/pdf/2016/06/kpmg-blockchain-consensus-mechanism.pdf
+- dated but useful historical survey of consensus mechanisms
+
+Scorex Tutorial
+- https://github.com/ScorexFoundation/ScorexTutorial
+- Chapter 3 : A Blockchain System Design
+  - explores design space of BC architecture
+
+"Bitcoin and Cryptocurrency Technologies" (aka "Princeton Bitcoin Book")
+- http://bitcoinbook.cs.princeton.edu/
+- Arvind Narayanan, Andrew Miller, et. al.
 
 ------------------------------------------------------------------------------
 * abstract

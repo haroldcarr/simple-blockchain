@@ -1,60 +1,11 @@
 {-
-------------------------------------------------------------------------------
-
-                    Let's Build a Blockchain (in Haskell)
-
-                         harold.carr@gmail.com
-
-                            Oracle Labs
-
-           https://github.com/haroldcarr/simple-blockchain
-
-------------------------------------------------------------------------------
-Other tutorials
-Haskell
-- Thomas Dietert (adjoint.io) "Building a Blockchain in Haskell"
-  - https://github.com/tdietert/haskell-blockchain-workshop
-- Michael Burge
-  - http://www.michaelburge.us/2017/08/17/rolling-your-own-blockchain.html
-  - http://www.michaelburge.us/2017/08/31/roll-your-own-bitcoin-exchange.html
-Python
-  https://hackernoon.com/learn-blockchains-by-building-one-117428612f46
-  - src : https://github.com/dvf/blockchain
-------------------------------------------------------------------------------
-Books/Papers
-
-Things I have found useful (suggest in the given order):
-
-Scorex Tutorial
-- https://github.com/ScorexFoundation/ScorexTutorial
-- Chapter 2 : Overview of Bitcoin
-
-"Mechanising Blockchain Consensus"
-- http://ilyasergey.net/papers/toychain-cpp18.pdf
-- good overview of main data structures and properties
-- formalization of BC consensus protocol (in Coq)
-
-https://assets.kpmg.com/content/dam/kpmg/pdf/2016/06/kpmg-blockchain-consensus-mechanism.pdf
-- dated but useful historical survey of consensus mechanisms
-
-Scorex Tutorial
-- https://github.com/ScorexFoundation/ScorexTutorial
-- Chapter 3 : A Blockchain System Design
-  - explores design space of BC architecture
-
-"Bitcoin and Cryptocurrency Technologies" (aka "Princeton Bitcoin Book")
-- http://bitcoinbook.cs.princeton.edu/
-- Arvind Narayanan, Andrew Miller, et. al.
--}
-------------------------------------------------------------------------------
-{-
 Ledger
-../../00-ledger/diagrams/1-single-threaded-log.png
-../../00-ledger/diagrams/2-multi-threaded-log.png
-../../00-ledger/diagrams/3-multi-threaded-communication-log.png
-../../00-ledger/diagrams/4-multi-threaded-communication-ordered-log.png
-../../00-ledger/diagrams/5-distributed-log.png
-../../00-ledger/diagrams/6-smart-contract.png
+../examples/scenario-0/1-single-threaded-log.png
+../examples/scenario-0/2-multi-threaded-log.png
+../examples/scenario-0/3-multi-threaded-communication-log.png
+../examples/scenario-0/4-multi-threaded-communication-ordered-log.png
+../examples/scenario-0/5-distributed-log.png
+../examples/scenario-0/6-smart-contract.png
 -}
 
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
@@ -134,7 +85,7 @@ t01 = describe "t01-initialBCState" $ it "has empty pool and only genesisBlock i
           , bcProofDifficulty = 4}
 
 ------------------------------------------------------------------------------
--- ../../00-ledger/diagrams/5-distributed-log.png
+-- ../examples/scenario-0/5-distributed-log.png
 addTxToPool :: BCState -> Transaction -> BCState
 addTxToPool s tx =
   if txInPoolOrChain tx s then s
@@ -189,7 +140,7 @@ searchChain f z = foldr go (False, z)
                      in if b then r else blocks
 
 ------------------------------------------------------------------------------
--- ../../00-ledger/diagrams/5-distributed-log.png
+-- ../examples/scenario-0/5-distributed-log.png
 mine :: BCState -> (BCState, Block)
 mine s =
   let lastBlock = last (bcChain s) -- TODO
@@ -290,7 +241,7 @@ testEvidence = describe "evidence" $ do
     "000072456DC7CC3975C0CC3543B6BA201E6F4D056679970C3644D2DDEB4EEA67"
 
 ------------------------------------------------------------------------------
--- ../../00-ledger/diagrams/5-distributed-log.png
+-- ../examples/scenario-0/5-distributed-log.png
 -- | CONSENSUS ALGORITHM
 --   Chooses longest chain in the network.
 --   Returns (updated-environment, (True , ""))             if chain was replaced.
@@ -758,6 +709,6 @@ testMkUTXO2 addToChainX emptyChain = do
 -- TODO : ensure UTXO are rooted in CreateCoin
 -- TODO : hook up to BC operation as "Smart Contract"
 -- TODO : alternate smart contract (e.g., key/value store)
--- ../../00-ledger/diagrams/6-smart-contract.png
+-- ../examples/scenario-0/6-smart-contract.png
 -- stack test
 
