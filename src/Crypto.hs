@@ -55,7 +55,7 @@ verifyMsgSig p m s = PK.verify (Just H.SHA512) p (getMsg m) (getSig s)
 
 ------------------------------------------------------------------------------
 
-doitIO :: RT.MonadRandom m
+doitIO :: (MonadFail m, RT.MonadRandom m)
      => Msg
      -> m Bool
 doitIO msg = do
@@ -69,5 +69,5 @@ doit msg = do
   sig <- signMsg sk msg
   return $ verifyMsgSig pk msg sig
 
-top :: RT.MonadRandom m => m Bool
+top :: (MonadFail m, RT.MonadRandom m) => m Bool
 top = doitIO (Msg "this is a message")
